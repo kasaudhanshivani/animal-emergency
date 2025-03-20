@@ -1,44 +1,64 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { MapPin } from "lucide-react";
 
-const LocationFetcher = () => {
-  const [location, setLocation] = useState(null);
-  const [error, setError] = useState("");
+export default function LocationFetcher() {
+  const [location, setLocation] = useState({ city: "Fetching...", latitude: null, longitude: null });
+  const [error, setError] = useState(null);
 
-  const fetchLocation = () => {
-    if (!navigator.geolocation) {
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            // Reverse Geocoding using OpenStreetMap API
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            );
+            const data = await res.json();
+
+            setLocation({
+              city:
+                data.address.city ||
+                data.address.town ||
+                data.address.village ||
+                data.address.state_district || // Fallback to district if city is not found
+                data.address.state || // Fallback to state if district is not found
+                "Unknown",
+              latitude,
+              longitude,
+            });
+          } catch {
+            setLocation({ city: "Unknown", latitude, longitude });
+          }
+        },
+        (err) => {
+          setError("Unable to retrieve location. Please enable location access.");
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // High accuracy mode
+      );
+    } else {
       setError("Geolocation is not supported by your browser.");
-      return;
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setLocation({ latitude, longitude });
-        setError("");
-      },
-      (err) => {
-        setError("Unable to retrieve your location. Please allow location access.");
-      }
-    );
-  };
+  }, []);
 
   return (
-    <div className="mt-6 bg-white p-4 rounded-lg shadow-lg max-w-md text-black text-center">
-      <h3 className="text-lg font-semibold">📍 Your Location</h3>
-      <button
-        onClick={fetchLocation}
-        className="mt-2 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded transition"
-      >
-        Get Current Location
-      </button>
-      {location && (
-        <p className="mt-2 text-sm">
-          🌍 Latitude: {location.latitude}, Longitude: {location.longitude}
-        </p>
-      )}
-      {error && <p className="mt-2 text-red-600">{error}</p>}
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      <div className="bg-white shadow-lg rounded-2xl p-6 w-96 text-center">
+        <div className="flex items-center justify-center bg-blue-100 p-4 rounded-full w-16 h-16 mx-auto">
+          <MapPin className="text-blue-600 w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-800 mt-4">Your Current Location</h2>
+        {error ? (
+          <p className="text-red-500 mt-2">{error}</p>
+        ) : (
+          <p className="text-gray-600 mt-2">
+            <strong>City:</strong> {location.city} <br />
+            <strong>Latitude:</strong> {location.latitude} <br />
+            <strong>Longitude:</strong> {location.longitude}
+          </p>
+        )}
+      </div>
     </div>
   );
-};
-
-export default LocationFetcher;
+}
